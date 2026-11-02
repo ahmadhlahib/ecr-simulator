@@ -1,14 +1,19 @@
-ECR Simulator 2.0  -  created by Ahmad El Lahib
+ECR Simulator 2.1  -  created by Ahmad El Lahib
 ================================================
 
 A Windows cash register (ECR) that talks to the Areeba POS over a cable.
-Replaces the "Mega Tech ECR Simulator" (C:\Android Dev new\megatech-simulator).
-Mac laptops: use the mac folder (see mac/README.txt).
+Mac laptops: use the Mac version (see mac/README.txt).
 
-Start: double-click "ECR Simulator.cmd"
-       (or: powershell -STA -ExecutionPolicy Bypass -File Start-EcrSimulator.ps1 -Port COM21)
-No .exe is needed: the sources in src\ are compiled in memory, so the antivirus has nothing to delete.
-build.cmd makes "ECR Simulator.exe" if you want one.
+Start
+  - Double-click "ECR Simulator.exe".
+  - Once: double-click "Create Shortcuts.cmd" to add "ECR Simulator" with its icon to the Desktop and Start menu.
+  - If your antivirus removes the .exe, double-click "ECR Simulator.cmd": it opens the same window without an .exe
+    (the sources in src\ are compiled in memory). "Create Shortcuts.cmd" then makes shortcuts to that instead.
+  - Command line: "ECR Simulator.exe" --port COM21
+  - Windows may show "Windows protected your PC" the first time: click "More info", then "Run anyway".
+
+For developers: build.cmd rebuilds the .exe (icon and version details embedded); tools\make-icon.ps1 redraws
+assets\ecr.ico. The version number is Program.Version in src\EcrSimulatorForm.cs.
 
 1. Connection
    Cable:  Nexgo D20 Bluetooth base (USB)  -> 115200 8N1, RTS 0, DTR 0 (RTS 1 reboots the D20)

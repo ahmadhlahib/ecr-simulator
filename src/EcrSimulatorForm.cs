@@ -14,7 +14,7 @@ namespace EcrSim
 {
     public static class Program
     {
-        public const string Version = "2.0";
+        public const string Version = "2.1";
         public const string Author = "Ahmad El Lahib";
 
         [STAThread]
@@ -30,7 +30,28 @@ namespace EcrSim
                 if (args[i] == "--snapshot") snapshot = args[i + 1];
                 if (args[i] == "--port") port = args[i + 1];
             }
-            using (var f = new MainForm(baseDir, port, snapshot)) Application.Run(f);
+            try
+            {
+                using (var f = new MainForm(baseDir, port, snapshot)) Application.Run(f);
+            }
+            catch (Exception e)
+            {
+                MessageBox.Show("The ECR Simulator could not start:\n\n" + e.Message, "ECR Simulator", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        // The icon embedded in the .exe (build.cmd), else assets\ecr.ico next to the launcher.
+        public static Icon AppIcon(string baseDir)
+        {
+            try
+            {
+                var s = typeof(Program).Assembly.GetManifestResourceStream("EcrSim.ecr.ico");
+                if (s != null) using (s) return new Icon(s);
+                string f = Path.Combine(Path.Combine(baseDir, "assets"), "ecr.ico");
+                if (File.Exists(f)) return new Icon(f);
+            }
+            catch (Exception) { /* no icon: Windows shows the default one */ }
+            return null;
         }
     }
 
@@ -112,6 +133,8 @@ namespace EcrSim
             Size = new Size(Math.Min(1340, wa.Width), Math.Min(940, wa.Height));
             MinimumSize = new Size(980, 640);
             StartPosition = FormStartPosition.CenterScreen;
+            var icon = Program.AppIcon(baseDir);
+            if (icon != null) Icon = icon;
 
             BuildUi();
             RefreshPorts(port ?? Ini("port", ""));
