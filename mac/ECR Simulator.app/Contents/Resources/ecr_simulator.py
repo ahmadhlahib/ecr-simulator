@@ -17,10 +17,12 @@ from tkinter.scrolledtext import ScrolledText
 import ecr_engine as E
 import mac_port
 
-VERSION = "2.0"
+VERSION = "2.1"
 AUTHOR = "Ahmad El Lahib"
 HERE = os.path.dirname(os.path.abspath(__file__))
-SETTINGS_FILE = os.path.join(HERE, "ecr-simulator.json")
+# Logs and settings: ~/Documents/ECR Simulator when started from the .app (the launcher sets ECR_SIM_DATA), else here.
+DATA = os.environ.get("ECR_SIM_DATA") or HERE
+SETTINGS_FILE = os.path.join(DATA, "ecr-simulator.json")
 
 CABLES = (
     "Nexgo D20 Bluetooth base (USB)  -  115200, RTS 0, DTR 0",
@@ -89,9 +91,14 @@ class App:
         self.shown_version = -1
         self.seen_sale = self.seen_preauth = self.seen_sent = None
         self.history = list(self.cfg.get("history", []))
-        self.engine = E.Engine(mac_port.PosixSerial, mac_port.port_exists, os.path.join(HERE, "logs"))
+        self.engine = E.Engine(mac_port.PosixSerial, mac_port.port_exists, os.path.join(DATA, "logs"))
 
         root.title("ECR Simulator %s  -  by %s" % (VERSION, AUTHOR))
+        try:
+            self.icon = tk.PhotoImage(file=os.path.join(HERE, "ecr.png"))
+            root.iconphoto(True, self.icon)   # Dock icon on macOS
+        except tk.TclError:
+            pass
         w, h = min(1320, root.winfo_screenwidth()), min(900, root.winfo_screenheight() - 60)
         root.geometry("%dx%d" % (w, h))
         root.minsize(980, 620)
@@ -612,7 +619,7 @@ class App:
         self.root.clipboard_append(self.tx_log.get("1.0", "end-1c"))
 
     def _open_logs(self):
-        d = os.path.join(HERE, "logs")
+        d = os.path.join(DATA, "logs")
         os.makedirs(d, exist_ok=True)
         subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", d])
 

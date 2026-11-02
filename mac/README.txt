@@ -1,17 +1,21 @@
-ECR Simulator 2.0 for macOS  -  created by Ahmad El Lahib
+ECR Simulator 2.1 for macOS  -  created by Ahmad El Lahib
 ==========================================================
 
-Same simulator as the Windows version, for Mac laptops (Python + Tk, no installation of the app itself).
+Same simulator as the Windows version, as a Mac app: double-click "ECR Simulator.app".
 
-One-time setup
-1. Install Python 3 from https://www.python.org/downloads/macos/ (it includes Tk 8.6).
-   Apple's built-in python3 has an old Tk that can show a blank window; Homebrew works too
-   (brew install python python-tk).
-2. The first time, right-click "ECR Simulator.command" > Open > Open (macOS asks once because the file
-   was downloaded). If it says it is not executable, open Terminal in this folder and run:
-       chmod +x "ECR Simulator.command"
+First time only
+1. Install Python 3 from https://www.python.org/downloads/macos/ (free; it includes everything the app needs).
+   If Python is missing, the app tells you and opens the download page.
+2. Optional: drag "ECR Simulator.app" into Applications (and onto the Dock).
+3. macOS blocks apps downloaded from the internet that are not from the App Store the first time:
+   - macOS 14 or older: right-click the app > Open > Open.
+   - macOS 15 (Sequoia) or newer: double-click it, click "Done", then System Settings > Privacy & Security,
+     scroll down to "ECR Simulator was blocked" and click "Open Anyway".
+   - Or once in Terminal:  xattr -cr "/Applications/ECR Simulator.app"   (use the path where the app is)
+After that, a double-click opens it directly.
 
-Start: double-click "ECR Simulator.command"   (or in Terminal: python3 ecr_simulator.py --port /dev/cu.usbmodem1101)
+Logs and settings: Documents/ECR Simulator (logs folder, ecr-simulator.json). The "Open logs folder" button opens it.
+If the app does not open, look at Documents/ECR Simulator/startup-errors.log.
 
 Ports on a Mac
 - Nexgo D20 Bluetooth base: /dev/cu.usbmodem...  (shown as "Nexgo D20 base (Bluetooth)" when detected)
@@ -29,4 +33,7 @@ Direct cables are not affected.
 Everything else (formats, modes, transactions, free text, fault tests, logs) works as described in the
 main README.txt one folder up.
 
-Tests (no device needed):  python3 -m unittest test_ecr_engine
+For developers
+- The code is inside the app: ECR Simulator.app/Contents/Resources (ecr_engine.py, mac_port.py, ecr_simulator.py).
+- Run from Terminal: python3 "ECR Simulator.app/Contents/Resources/ecr_simulator.py" --port /dev/cu.usbmodem1101
+- Tests (no device needed): python3 -m unittest test_ecr_engine

@@ -3,3 +3,8 @@
 mac/*.txt text eol=lf
 *.cmd text eol=crlf
 *.ps1 text eol=crlf
+mac/**/MacOS/* text eol=lf
+*.plist text eol=lf
+*.icns binary
+*.ico binary
+*.png binary

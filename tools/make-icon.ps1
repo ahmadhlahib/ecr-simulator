@@ -86,3 +86,22 @@ for ($i = 0; $i -lt $sizes.Count; $i++) {
 foreach ($p in $pngs) { $w.Write($p) }
 [IO.File]::WriteAllBytes((Join-Path $assets 'ecr.ico'), $out.ToArray())
 "icon written: " + (Join-Path $assets 'ecr.ico')
+
+# macOS icon (ecr.icns): 'icns' + big-endian length, then PNG entries by type code.
+function BE([int]$v) { $b = [BitConverter]::GetBytes([uint32]$v); [Array]::Reverse($b); return , $b }
+$icnsTypes = [ordered]@{ 'icp4' = 16; 'icp5' = 32; 'ic11' = 32; 'ic12' = 64; 'ic07' = 128; 'ic08' = 256; 'ic13' = 512; 'ic09' = 512; 'ic14' = 1024; 'ic10' = 1024 }
+$body = New-Object IO.MemoryStream
+foreach ($k in $icnsTypes.Keys) {
+    $bmp = Draw $icnsTypes[$k]
+    $ms = New-Object IO.MemoryStream; $bmp.Save($ms, [Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
+    $png = $ms.ToArray()
+    $body.Write([Text.Encoding]::ASCII.GetBytes($k), 0, 4)
+    $len = BE (8 + $png.Length); $body.Write($len, 0, 4)
+    $body.Write($png, 0, $png.Length)
+}
+$icns = New-Object IO.MemoryStream
+$icns.Write([Text.Encoding]::ASCII.GetBytes('icns'), 0, 4)
+$total = BE (8 + $body.Length); $icns.Write($total, 0, 4)
+$body.WriteTo($icns)
+[IO.File]::WriteAllBytes((Join-Path $assets 'ecr.icns'), $icns.ToArray())
+"icon written: " + (Join-Path $assets 'ecr.icns')

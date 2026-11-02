@@ -1,0 +1,20 @@
+#!/bin/bash
+# ECR Simulator.app launcher (created by Ahmad El Lahib).
+# Starts the simulator with the python.org or Homebrew Python. Logs and settings go to ~/Documents/ECR Simulator.
+RES="$(cd "$(dirname "$0")/../Resources" && pwd)"
+export ECR_SIM_DATA="$HOME/Documents/ECR Simulator"
+mkdir -p "$ECR_SIM_DATA"
+
+# Apple's /usr/bin/python3 is skipped: its Tk is too old (blank window) and it may ask to install developer tools.
+for py in /Library/Frameworks/Python.framework/Versions/Current/bin/python3 \
+          /opt/homebrew/bin/python3 /usr/local/bin/python3; do
+    if [ -x "$py" ] && "$py" -c "import tkinter, sys; sys.exit(0 if tkinter.TkVersion >= 8.6 else 1)" 2>/dev/null; then
+        exec "$py" "$RES/ecr_simulator.py" "$@" 2>>"$ECR_SIM_DATA/startup-errors.log"
+    fi
+done
+
+answer=$(osascript -e 'button returned of (display dialog "ECR Simulator needs Python 3, a free download from python.org.\n\nInstall it once, then open ECR Simulator again." buttons {"Cancel", "Download Python"} default button "Download Python" with title "ECR Simulator" with icon caution)' 2>/dev/null)
+if [ "$answer" = "Download Python" ]; then
+    open "https://www.python.org/downloads/macos/"
+fi
+exit 1

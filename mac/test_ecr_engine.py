@@ -1,9 +1,12 @@
 """Tests for the ECR Simulator engine with a fake serial port. Run: python3 -m unittest test_ecr_engine"""
 
+import os
+import sys
 import unittest
 from decimal import Decimal
 
-import ecr_engine as E
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "ECR Simulator.app", "Contents", "Resources"))
+import ecr_engine as E  # noqa: E402
 
 POS_STX, POS_ETX = "\x02", "\x03"
 

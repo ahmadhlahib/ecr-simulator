@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>ECR Simulator</string>
+    <key>CFBundleDisplayName</key>
+    <string>ECR Simulator</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.ahmadellahib.ecrsimulator</string>
+    <key>CFBundleExecutable</key>
+    <string>ECR Simulator</string>
+    <key>CFBundleIconFile</key>
+    <string>ecr</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>2.1</string>
+    <key>CFBundleVersion</key>
+    <string>2.1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.13</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright (c) 2026 Ahmad El Lahib</string>
+</dict>
+</plist>
