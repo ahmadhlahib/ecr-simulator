@@ -1,0 +1,4 @@
+logs/
+ecr-simulator.ini
+*.exe
+*.zip
