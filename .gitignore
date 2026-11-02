@@ -2,3 +2,6 @@ logs/
 ecr-simulator.ini
 *.exe
 *.zip
+__pycache__/
+*.pyc
+ecr-simulator.json
