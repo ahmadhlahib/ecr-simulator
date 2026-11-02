@@ -3,6 +3,7 @@ ECR Simulator 2.0  -  created by Ahmad El Lahib
 
 A Windows cash register (ECR) that talks to the Areeba POS over a cable.
 Replaces the "Mega Tech ECR Simulator" (C:\Android Dev new\megatech-simulator).
+Mac laptops: use the mac folder (see mac/README.txt).
 
 Start: double-click "ECR Simulator.cmd"
        (or: powershell -STA -ExecutionPolicy Bypass -File Start-EcrSimulator.ps1 -Port COM21)
