@@ -736,7 +736,8 @@ class Engine:
 
     def _build_frame(self, r):
         """The register's request for the selected format, or (None, reason shown) when it cannot be built."""
-        title = r.type.upper()
+        incremental = r.type == "IncrementalPreauth"
+        title = "INCREMENTAL" if incremental else r.type.upper()
         money = r.type not in ("Settlement", "Void")
         if money and r.amount <= 0:
             self._result("ENTER AN AMOUNT", "Enter an amount like 12.50", "bad")
@@ -744,7 +745,13 @@ class Engine:
         if self.cfg.fmt == "HDMC" and r.type not in ("Sale", "Settlement"):
             self._result("NOT IN HDMC", "HDMC only has Sale, Settlement and IsConnected?.", "bad")
             return None, None
-        by_original = r.type in ("Void", "Completion")
+        if incremental and not self._is_kv:
+            # The POS reads InitiateTxn=Sale|Preauth|Completion|Void|Refund only (QSRepo), so it would ignore it.
+            self._result("NOT IN QS", "Incremental preauth exists only in KV (and wireless) on the POS. "
+                         "Switch the format to KV or KV Jordan.", "bad")
+            return None, None
+        # Void, Completion and Incremental point at an earlier transaction by its ECR ref.
+        by_original = r.type in ("Void", "Completion") or incremental
         has_orig = bool(digits(r.orig_ref))
         if by_original and not has_orig and not (self._is_kv and r.type == "Void"):
             self._result("ORIGINAL REF MISSING", "Enter the ECR ref of the original %s in \"Original ref\"."
@@ -783,7 +790,8 @@ class Engine:
             if has_orig:
                 f.append("ECRREF=" + rf)
         else:
-            f += ["CMD=" + r.type.upper(), "AMT=" + amount_text, "CURRENCY=" + r.currency, "ECRREF=" + rf]
+            cmd = "INCREMENTAL_PREAUTH" if incremental else r.type.upper()
+            f += ["CMD=" + cmd, "AMT=" + amount_text, "CURRENCY=" + r.currency, "ECRREF=" + rf]
         if r.seq_no and r.seq_no.strip():
             f.append("TXNCONSEQUENTIALNO=" + r.seq_no.strip())
         return kv_frame(f), title

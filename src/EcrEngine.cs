@@ -34,6 +34,7 @@ namespace EcrSim
         [DllImport("kernel32.dll", SetLastError = true)] static extern bool GetCommState(SafeFileHandle h, ref DCB d);
         [DllImport("kernel32.dll", SetLastError = true)] static extern bool SetCommState(SafeFileHandle h, ref DCB d);
         [DllImport("kernel32.dll", SetLastError = true)] static extern bool EscapeCommFunction(SafeFileHandle h, uint func);
+        [DllImport("kernel32.dll", SetLastError = true)] static extern bool ClearCommError(SafeFileHandle h, out uint errors, IntPtr stat);
         const uint SETRTS = 3, CLRRTS = 4, SETDTR = 5, CLRDTR = 6;
 
         [StructLayout(LayoutKind.Sequential)]
@@ -92,6 +93,10 @@ namespace EcrSim
             return o;
         }
 
+        // A USB serial device that was unplugged leaves a handle on which reads still "succeed" with 0 bytes;
+        // ClearCommError fails on it, so this tells whether the handle still reaches the device.
+        public bool IsAlive() { uint errors; return ClearCommError(h, out errors, IntPtr.Zero); }
+
         public void SetRts(bool on) { if (!EscapeCommFunction(h, on ? SETRTS : CLRRTS)) throw new Win32Exception(Marshal.GetLastWin32Error(), "RTS"); }
         public void SetDtr(bool on) { if (!EscapeCommFunction(h, on ? SETDTR : CLRDTR)) throw new Win32Exception(Marshal.GetLastWin32Error(), "DTR"); }
 
@@ -119,7 +124,7 @@ namespace EcrSim
 
     public sealed class TxnRequest
     {
-        public string Type;                 // Sale, Preauth, Completion, Refund, Void, Settlement
+        public string Type;                 // Sale, Preauth, Completion, IncrementalPreauth, Refund, Void, Settlement
         public decimal Amount;
         public string Currency = "840";
         public int Decimals = 2;
@@ -173,6 +178,8 @@ namespace EcrSim
         TxnRequest repeatReq;
         DateTime closeAt = DateTime.MaxValue, nextRepeatAt = DateTime.MaxValue, pauseUntil = DateTime.MinValue;
         DateTime reopenAt = DateTime.MaxValue, ackAt = DateTime.MaxValue, nextAutoCheck = DateTime.MaxValue;
+        DateTime waitPortAt = DateTime.MaxValue, lostAt = DateTime.MinValue;   // port lost, reconnecting (LosePort)
+        DateTime nextAliveCheck = DateTime.MinValue;
 
         int okMissing, writeBlocked, portLost, baseReboots, approved, declined, noResult;
         readonly List<double> okTimes = new List<double>();
@@ -349,6 +356,14 @@ namespace EcrSim
                 if (pauseUntil != DateTime.MinValue) { pauseUntil = DateTime.MinValue; Log("--", "TEST: reading the port again"); }
                 foreach (var m in ReadMessages()) OnMessage(m);
             }
+            if (sp != null && now >= nextAliveCheck)
+            {
+                // Windows does not fail the reads when the USB cable is pulled: check the port is still there.
+                nextAliveCheck = now.AddSeconds(1);
+                if (Array.IndexOf(SerialPort.GetPortNames(), cfg.Port) < 0) LosePort(cfg.Port + " disappeared (cable pulled?)");
+                else if (!sp.IsAlive()) LosePort("the handle no longer reaches the device");
+            }
+            if (sp == null && now >= waitPortAt) TryReconnectLostPort(now);
             if (now >= ackAt) { ackAt = DateTime.MaxValue; SendKvAck(); }
             if (state == "handshake" && (now - t0).TotalSeconds >= cfg.OkTimeoutSec)
             {
@@ -619,11 +634,13 @@ namespace EcrSim
             state = "idle";
             closeAt = DateTime.MaxValue;
             ackAt = DateTime.MaxValue;
+            waitPortAt = DateTime.MaxValue;
             Changed();
         }
 
         bool Write(string data, string note)
         {
+            if (sp == null) { Log("!!", "not sent, the port is lost: " + data); return false; }
             var bytes = Latin1.GetBytes(data);
             var t = DateTime.Now;
             try
@@ -638,16 +655,13 @@ namespace EcrSim
             {
                 // Windows rejected the write: the handle is dead because the device was unplugged, powered off
                 // or rebooted since the port was opened (it comes back as a new COM port instance).
-                portLost++;
                 Log("!!", "PORT DEAD (stale COM port): Windows error " + e.NativeErrorCode + " '" + new Win32Exception(e.NativeErrorCode).Message + "'");
                 if (cfg.AutoReopen && ReopenPort())
                 {
                     try { sp.Write(bytes); Log("PC->POS", data); return true; }
                     catch (Exception e2) { Log("!!", "write failed again after reopening: " + e2.Message); }
                 }
-                Result("PORT DEAD (stale COM port)", "The device was unplugged, powered off or rebooted since " + cfg.Port + " was opened.\nConnect again (or turn on \"Auto-reopen a dead port\").", "bad");
-                Display("PORT DEAD", "Reconnect the COM port");
-                ClosePort("dead handle");
+                LosePort("write failed");
                 return false;
             }
             catch (Exception e)
@@ -658,6 +672,46 @@ namespace EcrSim
                 Log("!!", "PC WRITE BLOCKED after " + ms + " ms (the other side did not take the data): " + e.Message);
                 return false;
             }
+        }
+
+        // The cable came out or the device went away. With "Auto-reconnect" the port is reopened as soon as it is
+        // back and a transaction in progress keeps waiting for its result, like a register that recovers.
+        // Without it (or when idle in per-transaction mode) the port is simply closed, as before.
+        void LosePort(string why)
+        {
+            portLost++;
+            if (!cfg.AutoReopen || (cfg.PerTxn && state == "idle"))
+            {
+                Log("!!", "PORT LOST (" + why + ")");
+                Result("PORT LOST", "The COM port closed (the device rebooted or the cable came out). Connect again.", "bad");
+                Display("PORT LOST", "");
+                ClosePort("port lost");
+                return;
+            }
+            try { if (sp != null) sp.Dispose(); } catch (Exception) { /* dead handle */ }
+            sp = null;
+            rx.Length = 0;
+            lostAt = DateTime.Now;
+            waitPortAt = lostAt.AddSeconds(1);
+            Log("!!", "PORT LOST (" + why + ") - reconnecting as soon as " + cfg.Port + " is back" + (state == "result" ? "; still waiting for the result" : ""));
+            Display("PORT LOST", "Waiting for " + cfg.Port + " to come back (cable out?)");
+            Changed();
+        }
+
+        // Called every second while the port is lost: reopens it once Windows shows it again.
+        void TryReconnectLostPort(DateTime now)
+        {
+            // Per-transaction mode opens the port for the next transaction anyway.
+            if (cfg.PerTxn && state == "idle") { waitPortAt = DateTime.MaxValue; return; }
+            waitPortAt = now.AddSeconds(1);
+            if (Array.IndexOf(SerialPort.GetPortNames(), cfg.Port) < 0) return;
+            try { sp = new RawCom(cfg.Port, cfg, 3000); }
+            catch (Exception) { sp = null; return; }   // still coming up: try again in a second
+            waitPortAt = DateTime.MaxValue;
+            rx.Length = 0;
+            Log("--", string.Format(CultureInfo.InvariantCulture, "port back after {0:N1} s: reopened {1}", (now - lostAt).TotalSeconds, PortText()));
+            Display(pending != null ? pending.Title : "READY", state == "result" ? "Port back, waiting for the result..." : "Port back");
+            Changed();
         }
 
         bool ReopenPort()
@@ -695,11 +749,7 @@ namespace EcrSim
             }
             catch (Exception e)
             {
-                portLost++;
-                Log("!!", "PORT LOST while reading: " + e.Message);
-                Result("PORT LOST", "The COM port closed (the device rebooted or the cable came out). Connect again.", "bad");
-                Display("PORT LOST", "");
-                ClosePort("port lost");
+                LosePort("read failed: " + e.Message);
                 return output;
             }
             string text = rx.ToString();
@@ -841,7 +891,8 @@ namespace EcrSim
         // Builds the register's request for the selected format. Returns null (and shows why) when it cannot.
         string BuildFrame(TxnRequest r, out string title)
         {
-            title = r.Type.ToUpperInvariant();
+            bool incremental = r.Type == "IncrementalPreauth";
+            title = incremental ? "INCREMENTAL" : r.Type.ToUpperInvariant();
             bool money = r.Type != "Settlement" && r.Type != "Void";
             if (money && r.Amount <= 0) { Result("ENTER AN AMOUNT", "Enter an amount like 12.50", "bad"); return null; }
             if (cfg.Format == EcrFormat.HDMC && r.Type != "Sale" && r.Type != "Settlement")
@@ -849,7 +900,14 @@ namespace EcrSim
                 Result("NOT IN HDMC", "HDMC only has Sale, Settlement and IsConnected?.", "bad");
                 return null;
             }
-            bool byOriginal = r.Type == "Void" || r.Type == "Completion";
+            if (incremental && !IsKv)
+            {
+                // The POS reads InitiateTxn=Sale|Preauth|Completion|Void|Refund only (QSRepo), so it would ignore it.
+                Result("NOT IN QS", "Incremental preauth exists only in KV (and wireless) on the POS. Switch the format to KV or KV Jordan.", "bad");
+                return null;
+            }
+            // Void, Completion and Incremental point at an earlier transaction by its ECR ref.
+            bool byOriginal = r.Type == "Void" || r.Type == "Completion" || incremental;
             string rf = Ref8(byOriginal && !string.IsNullOrEmpty(Digits(r.OrigRef)) ? r.OrigRef : r.Ref);
             if (byOriginal && string.IsNullOrEmpty(Digits(r.OrigRef)) && !(IsKv && r.Type == "Void"))
             {
@@ -887,7 +945,7 @@ namespace EcrSim
                     if (!string.IsNullOrEmpty(Digits(r.OrigRef))) f.Add("ECRREF=" + rf);
                     break;
                 default:
-                    f.Add("CMD=" + r.Type.ToUpperInvariant());
+                    f.Add("CMD=" + (incremental ? "INCREMENTAL_PREAUTH" : r.Type.ToUpperInvariant()));
                     f.Add("AMT=" + amountText);
                     f.Add("CURRENCY=" + r.Currency);
                     f.Add("ECRREF=" + rf);
@@ -916,6 +974,9 @@ namespace EcrSim
 
         void OnQsMessage(string m)
         {
+            // Bytes in front of the STX (e.g. the raw "ok\n" a Nexgo terminal writes when it opens its port) are not part of it.
+            int stx = m.LastIndexOf(STX);
+            if (stx > 0) m = m.Substring(stx);
             string t = m.Trim(STX, ETX, '\r', '\n', ' ');
             if (t.Equals("ok", StringComparison.OrdinalIgnoreCase))
             {

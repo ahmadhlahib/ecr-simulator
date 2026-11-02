@@ -17,7 +17,7 @@ from tkinter.scrolledtext import ScrolledText
 import ecr_engine as E
 import mac_port
 
-VERSION = "2.1"
+VERSION = "2.2"
 AUTHOR = "Ahmad El Lahib"
 HERE = os.path.dirname(os.path.abspath(__file__))
 # Logs and settings: ~/Documents/ECR Simulator when started from the .app (the launcher sets ECR_SIM_DATA), else here.
@@ -315,8 +315,10 @@ class App:
         self.bt_settle = mk("Settlement", lambda: self._txn("Settlement"))
         self.bt_check = mk("IsConnected?", lambda: (self._push(), self.engine.check()))
         self.bt_stop = mk("Stop waiting", self.engine.stop)
+        # KV only: adds the amount to the preauth whose ECR ref is in "Original ref".
+        self.bt_incremental = mk("Incremental", lambda: self._txn("IncrementalPreauth"))
         for i, b in enumerate((self.bt_sale, self.bt_preauth, self.bt_completion, self.bt_refund,
-                               self.bt_void, self.bt_settle, self.bt_check, self.bt_stop)):
+                               self.bt_void, self.bt_settle, self.bt_check, self.bt_stop, self.bt_incremental)):
             b.grid(row=i // 4, column=i % 4, padx=2, pady=3, ipady=4)
         self.lb_last = ttk.Label(g, text="No approved sale yet.", foreground="gray", wraplength=430)
         G(g, 5, 0, self.lb_last, columnspan=4)
@@ -659,6 +661,7 @@ class App:
             en(b, can)
         for b in (self.bt_preauth, self.bt_completion, self.bt_refund, self.bt_void):
             en(b, can and not hdmc)
+        en(self.bt_incremental, can and kv)
         en(self.bt_stop, s["busy"] or s["repeat_left"] > 0)
         per_txn = self.v_pertxn.get()
         en(self.bt_connect, not per_txn and not s["connected"])

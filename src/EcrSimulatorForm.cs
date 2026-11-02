@@ -14,7 +14,7 @@ namespace EcrSim
 {
     public static class Program
     {
-        public const string Version = "2.1";
+        public const string Version = "2.2";
         public const string Author = "Ahmad El Lahib";
 
         [STAThread]
@@ -102,7 +102,7 @@ namespace EcrSim
         ComboBox cbCurrency;
         NumericUpDown nuDecimals, nuRepeat, nuRepeatSec;
         CheckBox ckAutoRef;
-        Button btSale, btPreauth, btCompletion, btRefund, btVoid, btSettle, btCheck, btStop;
+        Button btSale, btPreauth, btCompletion, btIncremental, btRefund, btVoid, btSettle, btCheck, btStop;
         Label lbLast;
         // tests
         NumericUpDown nuPause, nuClosed;
@@ -282,7 +282,8 @@ namespace EcrSim
             L(g, "Close the port", 28, 196);
             nuCloseDelay = N(g, 118, 195, 64, 0, 60000, 0);
             L(g, "ms after the result", 186, 196);
-            ckReopen = K(g, "Auto-reopen a dead port", 10, 224, true);
+            ckReopen = K(g, "Auto-reconnect", 10, 224, true);
+            new ToolTip().SetToolTip(ckReopen, "Cable pulled or port lost: reopen the port as soon as it is back and keep waiting for the result of the sale in progress.");
 
             btConnect = B(g, "Connect", 196, 220, 72, 30, delegate { PushSettings(); engine.Connect(); });
             btDisconnect = B(g, "Disconnect", 272, 220, 80, 30, delegate { engine.Disconnect(); });
@@ -329,7 +330,7 @@ namespace EcrSim
 
         void BuildTransaction(Control p)
         {
-            var g = Group(p, "3. Transaction", 460, 296);
+            var g = Group(p, "3. Transaction", 460, 336);
             L(g, "Amount", 10, 24);
             tbAmount = T(g, 70, 24, 90, "1.00");
             cbCurrency = C(g, 168, 24, 100, true, Currencies);
@@ -361,15 +362,17 @@ namespace EcrSim
             btSettle = B(g, "Settlement", 114, y + 40, w, h, delegate { Txn("Settlement"); });
             btCheck = B(g, "Check connection", 218, y + 40, w, h, delegate { PushSettings(); engine.Check(); });
             btStop = B(g, "Stop waiting", 322, y + 40, w, h, delegate { engine.Stop(); });
+            btIncremental = B(g, "Incremental", 10, y + 80, w, h, delegate { Txn("IncrementalPreauth"); });
+            new ToolTip().SetToolTip(btIncremental, "Incremental preauth (KV only): adds the amount to the preauth whose ECR ref is in \"Original ref\".");
             btSale.Font = btPreauth.Font = btRefund.Font = Bold;
             btSale.BackColor = Color.FromArgb(214, 232, 250);
-            lbLast = new Label { Location = new Point(10, y + 84), Size = new Size(414, 56), ForeColor = Color.DimGray, Font = new Font("Segoe UI", 8.5f) };
+            lbLast = new Label { Location = new Point(10, y + 124), Size = new Size(414, 56), ForeColor = Color.DimGray, Font = new Font("Segoe UI", 8.5f) };
             g.Controls.Add(lbLast);
         }
 
         void BuildTests(Control p)
         {
-            var g = Group(p, "4. Fault tests", 762, 92);
+            var g = Group(p, "4. Fault tests", 802, 92);
             L(g, "Stop reading the port for", 10, 26);
             nuPause = N(g, 168, 25, 56, 1, 3600, 60);
             L(g, "s", 226, 26);
@@ -786,6 +789,7 @@ namespace EcrSim
             bool canStart = !s.Busy && s.RepeatLeft == 0;
             btSale.Enabled = btSettle.Enabled = btCheck.Enabled = canStart;
             btPreauth.Enabled = btCompletion.Enabled = btRefund.Enabled = btVoid.Enabled = canStart && !hdmc;
+            btIncremental.Enabled = canStart && kv;
             btStop.Enabled = s.Busy || s.RepeatLeft > 0;
             bool perTxn = rbPerTxn.Checked;
             btConnect.Enabled = !perTxn && !s.Connected;

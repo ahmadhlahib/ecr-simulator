@@ -171,6 +171,21 @@ class EngineTest(unittest.TestCase):
         self.run_steps()
         self.assertTrue(self.port.written[-1].startswith('"<START>","CMD=SALE"'))
 
+    def test_kv_incremental_points_at_the_preauth_ref(self):
+        self.settings(fmt="KV")
+        self.engine.start_txn(E.TxnRequest(type="IncrementalPreauth", amount=Decimal("2.5"), currency="400",
+                                           decimals=3, orig_ref="02124658"))
+        self.run_steps()
+        self.assertEqual(self.port.written[-1],
+                         '"<START>","CMD=INCREMENTAL_PREAUTH","AMT=2.500","CURRENCY=400","ECRREF=02124658","<END>"')
+
+    def test_incremental_is_refused_in_qs(self):
+        self.settings(fmt="QS")
+        self.engine.start_txn(E.TxnRequest(type="IncrementalPreauth", amount=Decimal("2"), orig_ref="1"))
+        self.run_steps()
+        self.assertEqual(self.engine.snapshot()["result_title"], "NOT IN QS")
+        self.assertEqual(self.port.written, [])
+
     def test_kv_void_needs_txnid(self):
         self.settings(fmt="KV")
         self.engine.start_txn(E.TxnRequest(type="Void", orig_ref="1"))
