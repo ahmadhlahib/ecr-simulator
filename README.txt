@@ -1,6 +1,8 @@
 ECR Simulator 2.1  -  created by Ahmad El Lahib
 ================================================
 
+Author: Ahmad El Lahib - freelance Android, Windows and web developer in Lebanon - https://ahmadellahib.dev
+
 A Windows cash register (ECR) that talks to the Areeba POS over a cable.
 Mac laptops: use the Mac version (see mac/README.txt).
 
